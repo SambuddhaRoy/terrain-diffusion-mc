@@ -283,8 +283,8 @@ public final class OnnxModel implements AutoCloseable {
             gpuSlotHolder = null;
         }
 
-        try {
-            OrtSession.SessionOptions opts = new OrtSession.SessionOptions();
+        // Close the options: each addDirectML() creates a device, and leaking them exhausts DML after ~64 swaps.
+        try (OrtSession.SessionOptions opts = new OrtSession.SessionOptions()) {
             opts.setOptimizationLevel(OrtSession.SessionOptions.OptLevel.ALL_OPT);
             addGpuProvider(opts);
             activeGpuSession = env.createSession(optimizedModelBytes, opts);
