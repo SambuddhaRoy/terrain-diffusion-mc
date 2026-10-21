@@ -2,12 +2,17 @@
   "schemaVersion": 1,
   "id": "terrain-diffusion-mc",
   "version": "${version}",
-  "name": "terrain-diffusion-mc",
-  "description": "Terrain Diffusion in Minecraft",
-  "authors": [],
-  "contact": {},
+  "name": "Terrain Diffusion Continued",
+  "description": "AI-diffusion terrain with survival worldgen: caves, aquifers, ore veins, and every vanilla and modded overworld biome. A maintained fork of Terrain Diffusion by xandergos.",
+  "authors": [
+    "xandergos"
+  ],
+  "contact": {
+    "sources": "https://github.com/SambuddhaRoy/terrain-diffusion-mc",
+    "issues": "https://github.com/SambuddhaRoy/terrain-diffusion-mc/issues",
+    "homepage": "https://github.com/SambuddhaRoy/terrain-diffusion-mc"
+  },
   "license": "MIT",
-  "icon": "assets/terrain-diffusion-mc/icon.png",
   "environment": "*",
   "entrypoints": {
     "fabric-datagen": [
@@ -32,5 +37,11 @@
     "fabric-api": "*",
     "java": ">=25",
     "minecraft": "~${minecraft_version}"
+  },
+  "contributors": [
+    "SambuddhaRoy"
+  ],
+  "suggests": {
+    "terrablender": "*"
   }
 }

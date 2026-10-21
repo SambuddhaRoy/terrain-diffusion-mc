@@ -1,12 +1,39 @@
-# Terrain Diffusion Fabric Mod [[Modrinth]](https://modrinth.com/mod/terrain-diffusion)
+# Terrain Diffusion Continued
 
-#### UPDATE: The research behind this mod has been accepted to SIGGRAPH 2026, the world's premier graphics conference! That means the research was officially peer reviewed and recognized as a significant contribution to the field. Enjoy the mod!
+A maintained fork of [Terrain Diffusion](https://github.com/xandergos/terrain-diffusion-mc) by **xandergos** ([Modrinth](https://modrinth.com/mod/terrain-diffusion)), updated for **Minecraft 26.2 (Fabric)** and turned into a survival-ready world generator. All the AI terrain is the original author's work; this fork adds the parts survival players expect from a world generator.
+
+### What's new in Continued
+
+- **Minecraft 26.2**: ported to Fabric Loader 0.19.5+, Fabric API, Java 25.
+- **Caves**: vanilla's full cave network (cheese caves, spaghetti and noodle tunnels, pillars, cave entrances) carved beneath the diffusion terrain, with **aquifers** on: dry caves, underground lakes, and lava in the deep.
+- **Ores**: vanilla ore distribution plus **large copper and iron ore veins**.
+- **Every biome**: biomes are chosen by feeding Terrain Diffusion's climate and elevation into vanilla's multi-noise biome table, so the world gets all vanilla biomes (cherry groves, dark forests, mangrove swamps, deep oceans, beaches) and the cave biomes underground (lush caves, dripstone caves, deep dark).
+- **Structures**: because those biomes exist now, ocean monuments, woodland mansions and ancient cities generate again, alongside villages, outposts, trial chambers and the rest.
+- **Mod compatibility**: biomes added to the overworld by datapacks, or by [TerraBlender](https://modrinth.com/mod/terrablender) mods such as **Biomes O' Plenty**, generate in Terrain Diffusion worlds, including their surface blocks. Structure mods that pick biomes by tag work too.
+- **Fixes**: a DirectML GPU memory leak that broke terrain after about 30 tiles; the mod no longer overrides vanilla's grove biome in every world; vanilla's surface rules (no grass on cave floors).
+- Want the original look? Set `biomes.mode=classic` (see [Configuration](#configuration)).
+
+### Known limitations
+
+- **No rivers or lakes above sea level.** The terrain has real river valleys, but they're dry; water only fills below sea level.
+- **`/locate structure` can be slow** for structures that check ground height (temples, igloos, wells), because terrain has to be generated along the way. `/locate biome` doesn't work in Terrain Diffusion worlds.
+- **Voxy SeedGen** deliberately refuses Terrain Diffusion worlds (generating distant terrain from the seed would take hours of GPU time). Voxy on its own, or Voxy World Gen, works from real chunks.
+
+### Credits
+
+- Terrain Diffusion and the original mod: [Alexander Goslin (xandergos)](https://github.com/xandergos), MIT license. Research accepted to SIGGRAPH 2026.
+- Continued fork: [SambuddhaRoy](https://github.com/SambuddhaRoy).
+- **AI disclosure:** the terrain is generated at runtime by a generative diffusion model, and much of this fork's new code was written with the help of an AI coding assistant (Claude).
+
+---
+
+*The original README follows, with links and requirements updated for this fork.*
 
 This is a Minecraft Fabric mod integrating [Terrain Diffusion](https://github.com/xandergos/terrain-diffusion).
 
 ## Which version should I use?
 
-Three builds are available on the [Releases](https://github.com/xandergos/terrain-diffusion-mc/releases) page:
+Three builds are available on the [Releases](https://github.com/SambuddhaRoy/terrain-diffusion-mc/releases) page:
 
 **The CPU build is slow unless you are on MacOS.**
 
@@ -31,7 +58,7 @@ Use the `-cuda` build only if you are on Linux, or have an NVIDIA GPU and prefer
 
 **If using CUDA build:** First see [CUDA_INSTALL.md](CUDA_INSTALL.md).
 
-1. Download the mod jar from [Releases](https://github.com/xandergos/terrain-diffusion-mc/releases) for your Minecraft version and place it in your Minecraft `mods/` folder. Make sure the Minecraft version matches.
+1. Download the mod jar from [Releases](https://github.com/SambuddhaRoy/terrain-diffusion-mc/releases) for your Minecraft version and place it in your Minecraft `mods/` folder. Make sure the Minecraft version matches.
 2. Launch Minecraft, at least once online to download the models (~2.5GB).
 3. Create a world, and select the **Terrain Diffusion** world type. Click **Customize** to set the `World Scale` (see [Per-world settings](#per-world-settings) below).
 4. The mod will search for a land spawn point near the world origin automatically. If the area around (0, 0) is entirely ocean, it may take a moment to find land. Use `/td-explore` (see below) to scout the world further.
@@ -72,6 +99,12 @@ explorer.port=19801
 # Each coarse pixel covers a large area (hundreds of blocks), so 16–128 is typically sufficient.
 spawn_search.initial_size=16
 spawn_search.max_size=128
+
+# Biome selection.
+#   climate: Terrain Diffusion's climate and elevation pick from the full overworld biome list
+#            (all vanilla biomes, plus biomes added by datapacks and biome mods).
+#   classic: the original fixed palette of 23 biomes.
+biomes.mode=climate
 ```
 
 ### Per-world settings
@@ -91,7 +124,7 @@ This value is saved with the world save and affects:
 
 **A dynamic link library (DLL) initialization routine failed**
 
-This can happen for some older Java versions. Please update to the most recent version of Java 21 or higher. The [latest Microsoft OpenJDK 21](https://learn.microsoft.com/en-us/java/openjdk/download) version is known to work.
+This can happen for some older Java versions. Minecraft 26.2 needs Java 25; please update to the latest Java 25.
 
 **LoadLibrary failed with error 126** *(CUDA build only)*
 
@@ -102,7 +135,7 @@ This is typically due to an improper CUDA or cuDNN installation. See [CUDA_INSTA
 This typically indicates an "out of memory" error (the logs should show this as well).
 Terrain Diffusion's models take up about 2.5GB of RAM, so make sure to allocate enough RAM to account for this.
 
-**If your issue is still not resolved, please [raise it here](https://github.com/xandergos/terrain-diffusion-mc/issues/new).**
+**If your issue is still not resolved, please [raise it here](https://github.com/SambuddhaRoy/terrain-diffusion-mc/issues/new).**
 
 ## Building from Source
 
@@ -156,6 +189,6 @@ The built jar appears in `java/build/`. Rename it to `onnxruntime-dml.jar` and p
 
 ## Note For Mod Developers
 
-While modifying the AI terrain itself is quite complex, the integration with Minecraft biomes is extremely simple. The model outputs elevation + 4 climate variables, and this is converted to Minecraft biomes with hand-written rules. This is the most immediate way to improve the quality of the terrain and is relatively easy, but takes time to get realistic. The entire biome classifier is [only 250 lines](https://github.com/xandergos/terrain-diffusion-mc/blob/master/src/main/java/com/github/xandergos/terraindiffusionmc/pipeline/BiomeClassifier.java).
+While modifying the AI terrain itself is quite complex, the integration with Minecraft biomes is extremely simple. The model outputs elevation + 4 climate variables, and this is converted to Minecraft biomes with hand-written rules. This is the most immediate way to improve the quality of the terrain and is relatively easy, but takes time to get realistic. The entire biome classifier is [only 250 lines](src/main/java/com/github/xandergos/terraindiffusionmc/pipeline/BiomeClassifier.java). In this fork, `writeClimate` in the same file maps the model's climate onto vanilla's multi-noise parameters.
 
 The terrain diversity far outpaces the biome diversity and there's a real opportunity to close that gap. I'm hoping someone goes crazy with it.
