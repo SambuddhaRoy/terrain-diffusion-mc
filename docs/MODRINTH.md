@@ -44,6 +44,7 @@ Terrain Diffusion replaces Minecraft's noise terrain with terrain from a diffusi
 - **Minecraft 26.2** (Fabric Loader 0.19.5+, Java 25)
 - **Caves**: vanilla's full cave network (cheese caves, spaghetti and noodle tunnels, pillars, cave entrances) under the diffusion terrain, with **aquifers**: dry caves, underground lakes, lava in the deep
 - **Ores**: vanilla ores plus large **copper and iron ore veins**
+- **Rivers and lakes**: streams and rivers follow the terrain's real drainage, widening downstream, and lakes fill closed basins
 - **Every biome**: Terrain Diffusion's climate and elevation now choose from vanilla's full biome table, so you get cherry groves, dark forests, mangrove swamps, deep oceans and beaches, plus lush caves, dripstone caves and the deep dark underground
 - **Structures**: ocean monuments, woodland mansions and ancient cities generate again, along with villages, outposts and trial chambers
 - **Mod compatibility**: biomes from datapacks and from TerraBlender mods such as **Biomes O' Plenty** generate in Terrain Diffusion worlds, with their surface blocks; structure mods that place by biome tag work too
@@ -63,7 +64,7 @@ Create a world and pick the **Terrain Diffusion** world type. **Customize** sets
 
 ## Known limitations
 
-- No rivers or lakes above sea level yet. The valleys are there, but dry.
+- Rivers add roughly 50% to generation time on new land; `rivers.enabled=false` turns them off.
 - `/locate structure` can take minutes for structures that check ground height (temples, igloos). `/locate biome` doesn't work in Terrain Diffusion worlds.
 - Voxy SeedGen doesn't support Terrain Diffusion worlds. Plain Voxy, or Voxy World Gen, works.
 

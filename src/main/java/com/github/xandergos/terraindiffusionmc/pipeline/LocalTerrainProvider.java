@@ -1,10 +1,13 @@
 package com.github.xandergos.terraindiffusionmc.pipeline;
 
+import com.github.xandergos.terraindiffusionmc.config.TerrainDiffusionConfig;
 import com.github.xandergos.terraindiffusionmc.infinitetensor.FloatTensor;
+import com.github.xandergos.terraindiffusionmc.world.HeightConverter;
 import com.github.xandergos.terraindiffusionmc.world.WorldScaleManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -49,17 +52,27 @@ public final class LocalTerrainProvider {
         public final short[][] biomeIds;
         /** Vanilla multi-noise parameters per biome quart, see {@link BiomeClassifier#CLIMATE_PARAMS}; row stride is BiomeClassifier.quarts(width). */
         public final short[] climate;
+        /** Surface water Y per block, row-major (rivers and lakes); NO_WATER where dry; null if the tile has none. */
+        public final short[] waterLevel;
+        /** Highest value in waterLevel, for a cheap early-out. */
+        public final int maxWaterLevel;
         public final int width;
         public final int height;
 
-        public HeightmapData(short[][] heightmap, short[][] biomeIds, short[] climate, int width, int height) {
+        public HeightmapData(short[][] heightmap, short[][] biomeIds, short[] climate, short[] waterLevel, int width, int height) {
             this.heightmap = heightmap;
             this.biomeIds  = biomeIds;
             this.climate   = climate;
+            this.waterLevel = waterLevel;
+            int max = NO_WATER;
+            if (waterLevel != null) for (short w : waterLevel) max = Math.max(max, w);
+            this.maxWaterLevel = max;
             this.width     = width;
             this.height    = height;
         }
     }
+
+    public static final short NO_WATER = Short.MIN_VALUE;
 
     private static record CacheKey(int i1, int j1, int i2, int j2) {}
     private static record CacheEntry(HeightmapData data, AtomicLong lastAccessed) {}
@@ -257,7 +270,8 @@ public final class LocalTerrainProvider {
 
         short[] climateParams = newClimateParams(H, W);
         short[] biomeFlat = BiomeClassifier.classify(elevFlat, climate, i1, j1, elevPadded, H, W, NATIVE_RESOLUTION, climateParams);
-        return buildHeightmapData(elevFlat, biomeFlat, climateParams, H, W);
+        short[] water = applyHydrology(elevFlat, i1, j1, H, W, 1);
+        return buildHeightmapData(elevFlat, biomeFlat, climateParams, water, H, W);
     }
 
     // =========================================================================
@@ -304,7 +318,8 @@ public final class LocalTerrainProvider {
 
         short[] climateParams = newClimateParams(H, W);
         short[] biomeFlat = BiomeClassifier.classify(elevSmooth, climate, i1, j1, elevPadded, H, W, pixelSizeM, climateParams);
-        return buildHeightmapData(elevOut, biomeFlat, climateParams, H, W);
+        short[] water = applyHydrology(elevOut, i1, j1, H, W, scale);
+        return buildHeightmapData(elevOut, biomeFlat, climateParams, water, H, W);
     }
 
     // =========================================================================
@@ -394,7 +409,124 @@ public final class LocalTerrainProvider {
         return new short[BiomeClassifier.quarts(H) * BiomeClassifier.quarts(W) * BiomeClassifier.CLIMATE_PARAMS];
     }
 
-    private static HeightmapData buildHeightmapData(float[] elevFlat, short[] biomeFlat, short[] climateParams, int H, int W) {
+    // channel half-width and depth (blocks) per Hydrology tier: stream, river, big river
+    private static final int[] RIVER_RADIUS = {0, 1, 2, 3};
+    private static final int[] RIVER_DEPTH = {0, 1, 2, 3};
+
+    /**
+     * Carves river channels and fills lakes for a block-space tile. Lowers {@code elevBlocks} (metres) in place and
+     * returns the water surface Y per block ({@link #NO_WATER} where dry), or null if the tile has no surface water.
+     */
+    private short[] applyHydrology(float[] elevBlocks, int i1, int j1, int H, int W, int scale) {
+        if (!TerrainDiffusionConfig.riversEnabled()) return null;
+        int i1n = Math.floorDiv(i1, scale), j1n = Math.floorDiv(j1, scale);
+        int i2n = -Math.floorDiv(-(i1 + H), scale), j2n = -Math.floorDiv(-(j1 + W), scale);
+        int nH = i2n - i1n, nW = j2n - j1n, pad = Hydrology.PAD;
+        int m = RIVER_RADIUS[RIVER_RADIUS.length - 1] / scale + 1; // channels whose discs reach into this tile
+        int mH = nH + 2 * m, mW = nW + 2 * m, pW = nW + 2 * pad;
+        float[] nativeElev = pipeline.get(i1n - pad, j1n - pad, i2n + pad, j2n + pad, false)[0];
+        float blockMetres = NATIVE_RESOLUTION / scale;
+        Hydrology.Result hydro = Hydrology.compute(nativeElev, nH, nW, pad, m, Math.max(3f, 1.5f * blockMetres));
+
+        int n = H * W, sea = HeightConverter.seaLevel();
+        int[] groundY = new int[n];
+        for (int k = 0; k < n; k++) groundY[k] = HeightConverter.convertToMinecraftHeight(toShort(elevBlocks[k]), scale);
+        int[] bedY = groundY.clone();
+        short[] water = new short[n];
+        Arrays.fill(water, NO_WATER);
+        boolean any = false;
+
+        for (int r = 0; r < mH; r++) {
+            for (int c = 0; c < mW; c++) {
+                int t = hydro.tier()[r * mW + c];
+                if (t == 0) continue;
+                int nr = r - m, nc = c - m; // native pixel relative to the tile's native origin
+                int cr = (i1n + nr) * scale + scale / 2 - i1, cc = (j1n + nc) * scale + scale / 2 - j1;
+                // water sits one block below the lowest native ground around the channel centre; native elevation is
+                // global, so neighbouring tiles agree on the level
+                float low = Float.MAX_VALUE;
+                for (int dr = -1; dr <= 1; dr++)
+                    for (int dc = -1; dc <= 1; dc++)
+                        low = Math.min(low, nativeElev[(nr + pad + dr) * pW + (nc + pad + dc)]);
+                int surface = HeightConverter.convertToMinecraftHeight(toShort(low), scale) - 1;
+                if (surface <= sea) continue; // the sea takes over at the coast
+                int bed = Math.max(sea, surface - RIVER_DEPTH[t]);
+                int rad = RIVER_RADIUS[t];
+                for (int dr = -rad; dr <= rad; dr++)
+                    for (int dc = -rad; dc <= rad; dc++) {
+                        int rr = cr + dr, c2 = cc + dc;
+                        if (rr < 0 || rr >= H || c2 < 0 || c2 >= W || dr * dr + dc * dc > rad * rad + rad) continue;
+                        int k = rr * W + c2;
+                        if (water[k] == NO_WATER || water[k] > surface) water[k] = (short) surface;
+                        bedY[k] = Math.min(bedY[k], bed);
+                        any = true;
+                    }
+            }
+        }
+
+        // lakes fill depressions up to their spill level and win over channels running through them
+        for (int r = 0; r < mH; r++) {
+            for (int c = 0; c < mW; c++) {
+                float level = hydro.lakeLevel()[r * mW + c];
+                if (Float.isNaN(level)) continue;
+                int lakeY = HeightConverter.convertToMinecraftHeight(toShort(level), scale);
+                if (lakeY <= sea) continue;
+                for (int dr = 0; dr < scale; dr++)
+                    for (int dc = 0; dc < scale; dc++) {
+                        int rr = (i1n + r - m) * scale + dr - i1, c2 = (j1n + c - m) * scale + dc - j1;
+                        if (rr < 0 || rr >= H || c2 < 0 || c2 >= W) continue;
+                        int k = rr * W + c2;
+                        if (bedY[k] < lakeY && (water[k] == NO_WATER || water[k] < lakeY)) {
+                            water[k] = (short) lakeY;
+                            any = true;
+                        }
+                    }
+            }
+        }
+
+        if (!any) return null;
+        holdBanks(water, bedY, H, W, sea);
+        for (int k = 0; k < n; k++) {
+            if (bedY[k] < groundY[k]) elevBlocks[k] = HeightConverter.metersForBlockY(bedY[k], scale);
+        }
+        return water;
+    }
+
+    /**
+     * Keeps water from spilling sideways: a water column may not stand higher than a dry neighbour's ground.
+     * Over-high columns are lowered (and their bed deepened); steps between water columns are fine, they become rapids.
+     */
+    private static void holdBanks(short[] water, int[] bedY, int H, int W, int sea) {
+        int[] dr = {-1, 1, 0, 0}, dc = {0, 0, -1, 1};
+        for (int pass = 0; pass < 4; pass++) {
+            boolean changed = false;
+            for (int r = 0; r < H; r++) {
+                for (int c = 0; c < W; c++) {
+                    int k = r * W + c;
+                    if (water[k] == NO_WATER) continue;
+                    int w = water[k];
+                    for (int d = 0; d < 4; d++) {
+                        int rr = r + dr[d], cc = c + dc[d];
+                        if (rr < 0 || rr >= H || cc < 0 || cc >= W) continue;
+                        int j = rr * W + cc;
+                        if (water[j] == NO_WATER && bedY[j] < w) w = bedY[j];
+                    }
+                    if (w == water[k]) continue;
+                    changed = true;
+                    if (w <= sea) { water[k] = NO_WATER; continue; }
+                    water[k] = (short) w;
+                    if (bedY[k] >= w) bedY[k] = Math.max(sea, w - 1);
+                }
+            }
+            if (!changed) break;
+        }
+    }
+
+    private static short toShort(float metres) {
+        return (short) Math.max(-32768, Math.min(32767, (int) Math.floor(metres)));
+    }
+
+    private static HeightmapData buildHeightmapData(float[] elevFlat, short[] biomeFlat, short[] climateParams, short[] water, int H, int W) {
         short[][] heightmap = new short[H][W];
         short[][] biomeIds  = new short[H][W];
         for (int r = 0; r < H; r++)
@@ -403,6 +535,6 @@ public final class LocalTerrainProvider {
                 heightmap[r][c] = (short) Math.max(-32768, Math.min(32767, (int) Math.floor(e)));
                 biomeIds[r][c]  = biomeFlat[r * W + c];
             }
-        return new HeightmapData(heightmap, biomeIds, climateParams, W, H);
+        return new HeightmapData(heightmap, biomeIds, climateParams, water, W, H);
     }
 }

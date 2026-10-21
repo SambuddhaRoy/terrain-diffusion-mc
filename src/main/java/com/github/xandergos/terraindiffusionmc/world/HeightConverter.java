@@ -27,6 +27,16 @@ public class HeightConverter {
         return baseY + SEA_LEVEL;
     }
 
+    public static int seaLevel() {
+        return SEA_LEVEL;
+    }
+
+    /** Metres that {@link #convertToMinecraftHeight(short, int)} maps to block Y {@code y} (y at or above sea level). */
+    public static float metersForBlockY(int y, int configuredScale) {
+        float resolution = getResolutionForScale(configuredScale);
+        return (Math.max(y, SEA_LEVEL) - SEA_LEVEL + 0.5f) * resolution;
+    }
+
     /**
      * Returns the highest generated block Y expected from pipeline output for a given scale.
      */

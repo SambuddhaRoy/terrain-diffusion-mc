@@ -48,6 +48,11 @@ public final class TerrainDiffusionConfig {
         return "classic".equals(readString("biomes.mode", "climate"));
     }
 
+    /** Rivers and lakes above sea level (costs some extra terrain inference per tile). */
+    public static boolean riversEnabled() {
+        return readBoolean("rivers.enabled", true);
+    }
+
     /** Whether to offload inactive models from VRAM between pipeline stages. */
     public static boolean offloadModels() {
         return readBoolean("inference.offload_models", DEFAULT_OFFLOAD_MODELS);

@@ -7,6 +7,7 @@ A maintained fork of [Terrain Diffusion](https://github.com/xandergos/terrain-di
 - **Minecraft 26.2**: ported to Fabric Loader 0.19.5+, Fabric API, Java 25.
 - **Caves**: vanilla's full cave network (cheese caves, spaghetti and noodle tunnels, pillars, cave entrances) carved beneath the diffusion terrain, with **aquifers** on: dry caves, underground lakes, and lava in the deep.
 - **Ores**: vanilla ore distribution plus **large copper and iron ore veins**.
+- **Rivers and lakes**: streams and rivers follow the terrain's real drainage, carved into the valleys with widths that grow downstream, and lakes fill closed basins. Computed per tile with no seams; turn off with `rivers.enabled=false` for faster generation.
 - **Every biome**: biomes are chosen by feeding Terrain Diffusion's climate and elevation into vanilla's multi-noise biome table, so the world gets all vanilla biomes (cherry groves, dark forests, mangrove swamps, deep oceans, beaches) and the cave biomes underground (lush caves, dripstone caves, deep dark).
 - **Structures**: because those biomes exist now, ocean monuments, woodland mansions and ancient cities generate again, alongside villages, outposts, trial chambers and the rest.
 - **Mod compatibility**: biomes added to the overworld by datapacks, or by [TerraBlender](https://modrinth.com/mod/terrablender) mods such as **Biomes O' Plenty**, generate in Terrain Diffusion worlds, including their surface blocks. Structure mods that pick biomes by tag work too.
@@ -15,7 +16,7 @@ A maintained fork of [Terrain Diffusion](https://github.com/xandergos/terrain-di
 
 ### Known limitations
 
-- **No rivers or lakes above sea level.** The terrain has real river valleys, but they're dry; water only fills below sea level.
+- **Rivers cost generation time** (roughly +50% on freshly explored land). Set `rivers.enabled=false` if generation can't keep up.
 - **`/locate structure` can be slow** for structures that check ground height (temples, igloos, wells), because terrain has to be generated along the way. `/locate biome` doesn't work in Terrain Diffusion worlds.
 - **Voxy SeedGen** deliberately refuses Terrain Diffusion worlds (generating distant terrain from the seed would take hours of GPU time). Voxy on its own, or Voxy World Gen, works from real chunks.
 
@@ -105,6 +106,10 @@ spawn_search.max_size=128
 #            (all vanilla biomes, plus biomes added by datapacks and biome mods).
 #   classic: the original fixed palette of 23 biomes.
 biomes.mode=climate
+
+# Rivers and lakes above sea level, from drainage computed on the terrain.
+# Costs some extra terrain inference per tile; set to false for faster generation.
+rivers.enabled=true
 ```
 
 ### Per-world settings
