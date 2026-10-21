@@ -47,12 +47,15 @@ public final class LocalTerrainProvider {
     public static final class HeightmapData {
         public final short[][] heightmap;
         public final short[][] biomeIds;
+        /** Vanilla multi-noise parameters per biome quart, see {@link BiomeClassifier#CLIMATE_PARAMS}; row stride is BiomeClassifier.quarts(width). */
+        public final short[] climate;
         public final int width;
         public final int height;
 
-        public HeightmapData(short[][] heightmap, short[][] biomeIds, int width, int height) {
+        public HeightmapData(short[][] heightmap, short[][] biomeIds, short[] climate, int width, int height) {
             this.heightmap = heightmap;
             this.biomeIds  = biomeIds;
+            this.climate   = climate;
             this.width     = width;
             this.height    = height;
         }
@@ -252,8 +255,9 @@ public final class LocalTerrainProvider {
         float[] elevFlat = out[0];
         float[] climate  = out[1];
 
-        short[] biomeFlat = BiomeClassifier.classify(elevFlat, climate, i1, j1, elevPadded, H, W, NATIVE_RESOLUTION);
-        return buildHeightmapData(elevFlat, biomeFlat, H, W);
+        short[] climateParams = newClimateParams(H, W);
+        short[] biomeFlat = BiomeClassifier.classify(elevFlat, climate, i1, j1, elevPadded, H, W, NATIVE_RESOLUTION, climateParams);
+        return buildHeightmapData(elevFlat, biomeFlat, climateParams, H, W);
     }
 
     // =========================================================================
@@ -298,8 +302,9 @@ public final class LocalTerrainProvider {
 
         float[] elevOut = addElevationNoise(elevSmooth, elevPadded, i1, j1, H, W, pixelSizeM);
 
-        short[] biomeFlat = BiomeClassifier.classify(elevSmooth, climate, i1, j1, elevPadded, H, W, pixelSizeM);
-        return buildHeightmapData(elevOut, biomeFlat, H, W);
+        short[] climateParams = newClimateParams(H, W);
+        short[] biomeFlat = BiomeClassifier.classify(elevSmooth, climate, i1, j1, elevPadded, H, W, pixelSizeM, climateParams);
+        return buildHeightmapData(elevOut, biomeFlat, climateParams, H, W);
     }
 
     // =========================================================================
@@ -385,7 +390,11 @@ public final class LocalTerrainProvider {
         return a;
     }
 
-    private static HeightmapData buildHeightmapData(float[] elevFlat, short[] biomeFlat, int H, int W) {
+    private static short[] newClimateParams(int H, int W) {
+        return new short[BiomeClassifier.quarts(H) * BiomeClassifier.quarts(W) * BiomeClassifier.CLIMATE_PARAMS];
+    }
+
+    private static HeightmapData buildHeightmapData(float[] elevFlat, short[] biomeFlat, short[] climateParams, int H, int W) {
         short[][] heightmap = new short[H][W];
         short[][] biomeIds  = new short[H][W];
         for (int r = 0; r < H; r++)
@@ -394,6 +403,6 @@ public final class LocalTerrainProvider {
                 heightmap[r][c] = (short) Math.max(-32768, Math.min(32767, (int) Math.floor(e)));
                 biomeIds[r][c]  = biomeFlat[r * W + c];
             }
-        return new HeightmapData(heightmap, biomeIds, W, H);
+        return new HeightmapData(heightmap, biomeIds, climateParams, W, H);
     }
 }

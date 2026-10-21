@@ -1,0 +1,5 @@
+{
+  "type": "minecraft:mul",
+  "argument1": 0.1,
+  "argument2": "terrain-diffusion-mc:surface_depth"
+}

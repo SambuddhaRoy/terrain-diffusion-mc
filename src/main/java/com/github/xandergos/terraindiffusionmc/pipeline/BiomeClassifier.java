@@ -12,6 +12,7 @@ public final class BiomeClassifier {
     private static final FastNoiseLite TEMP_NOISE, TEMP_NOISE_FINE;
     private static final FastNoiseLite PRECIP_NOISE;
     private static final FastNoiseLite SNOW_NOISE, SNOW_NOISE_FINE;
+    private static final FastNoiseLite WEIRD_NOISE;
 
     static {
         TEMP_NOISE = makeFnl(12345, 1f/500f, 3, 2f, 0.5f);
@@ -19,6 +20,7 @@ public final class BiomeClassifier {
         PRECIP_NOISE = makeFnl(12345, 1f/500f, 5, 2f, 0.5f);
         SNOW_NOISE = makeFnl(12345, 1f/500f, 3, 2f, 0.5f);
         SNOW_NOISE_FINE = makeFnl(54321, 1f/128f, 2, 2f, 0.5f);
+        WEIRD_NOISE = makeFnl(24680, 1f/700f, 3, 2f, 0.5f);
     }
 
     private static FastNoiseLite makeFnl(int seed, float freq, int oct, float lac, float gain) {
@@ -51,10 +53,12 @@ public final class BiomeClassifier {
      * @param H          height
      * @param W          width
      * @param pixelSizeM physical size of one pixel in meters
+     * @param climateOut if non-null, receives vanilla multi-noise parameters (see {@link #CLIMATE_PARAMS})
+     *                   for every 4th pixel in each axis, i.e. one per biome quart: (ceil(H/4) * ceil(W/4) * 5)
      * @return short array (H, W) with biome IDs
      */
     public static short[] classify(float[] elev, float[] climate, int i0, int j0,
-                                    float[] elevPadded, int H, int W, float pixelSizeM) {
+                                    float[] elevPadded, int H, int W, float pixelSizeM, short[] climateOut) {
         short[] out = new short[H * W];
         for (int i = 0; i < H * W; i++) out[i] = PLAINS;
 
@@ -225,9 +229,59 @@ public final class BiomeClassifier {
                 }
 
                 out[idx] = biome;
+
+                if (climateOut != null && (r & 3) == 0 && (c & 3) == 0) {
+                    int q = ((r >> 2) * quarts(W) + (c >> 2)) * CLIMATE_PARAMS;
+                    writeClimate(climateOut, q, temp, effTreeMoisture, elevVal, slope, WEIRD_NOISE.GetNoise((float) (j0 + c), (float) (i0 + r)));
+                }
             }
         }
         return out;
+    }
+
+    /** Parameters per quart in climateOut: temperature, humidity, continentalness, erosion, weirdness (Climate-quantized). */
+    public static final int CLIMATE_PARAMS = 5;
+
+    /** Biome quarts covering n pixels (regions smaller than 4 still get one). */
+    public static int quarts(int n) {
+        return (n + 3) >> 2;
+    }
+
+    /**
+     * Maps Terrain Diffusion's physical climate onto vanilla's multi-noise parameter space, so any
+     * biome in the overworld parameter list (vanilla, datapacks, TerraBlender) can be chosen.
+     * Weirdness is kept out of the river "valley" slice (|w| < 0.05): Terrain Diffusion's valleys hold no water.
+     */
+    private static void writeClimate(short[] out, int q, float tempC, float treeMoisture, float elevM, float slope, float weirdNoise) {
+        float alt = Math.max(0f, elevM);
+        float t = piecewise(tempC, new float[]{-20f, -5f, 4f, 15f, 23f, 32f}, new float[]{-1f, -0.45f, -0.15f, 0.2f, 0.55f, 1f});
+        float h = piecewise(treeMoisture, new float[]{0f, 0.2f, 0.5f, 0.8f, 1.3f, 2.5f}, new float[]{-1f, -0.35f, -0.1f, 0.1f, 0.3f, 1f});
+        // ocean bands follow real depth; coast band (beaches) is the first 15 m above sea level
+        float c = piecewise(elevM, new float[]{-1500f, -200f, 0f, 15f, 150f, 600f, 3000f}, new float[]{-1f, -0.46f, -0.19f, -0.11f, 0.03f, 0.3f, 1f});
+        // erosion: low = rugged/high, high = flat lowland
+        float e = piecewise(alt, new float[]{0f, 100f, 400f, 1000f, 1800f, 2600f}, new float[]{0.55f, 0.3f, 0f, -0.3f, -0.6f, -0.85f});
+        e -= Math.max(0f, Math.min(0.6f, (slope - 0.1f) * 0.8f));
+        if (alt < 30f && slope < 0.03f) e = 0.7f;
+        // weirdness magnitude picks vanilla's peaks/high/mid/low slice from altitude; noise picks the variant side
+        float slice = alt >= 2500f ? 0.66f : alt >= 1200f ? 0.48f : alt >= 300f ? 0.33f : 0.15f;
+        float w = Math.copySign(slice + 0.04f * Math.abs(weirdNoise), weirdNoise);
+        out[q]     = quantize(t);
+        out[q + 1] = quantize(h);
+        out[q + 2] = quantize(c);
+        out[q + 3] = quantize(Math.max(-1f, Math.min(1f, e)));
+        out[q + 4] = quantize(w);
+    }
+
+    private static short quantize(float v) {
+        return (short) Math.round(Math.max(-3f, Math.min(3f, v)) * 10000f);
+    }
+
+    private static float piecewise(float x, float[] xs, float[] ys) {
+        if (x <= xs[0]) return ys[0];
+        for (int i = 1; i < xs.length; i++) {
+            if (x <= xs[i]) return ys[i - 1] + (ys[i] - ys[i - 1]) * (x - xs[i - 1]) / (xs[i] - xs[i - 1]);
+        }
+        return ys[ys.length - 1];
     }
 
     private static float[] computeSlopeRatio(float[] elevPadded, int H, int W, float pixelSizeM) {

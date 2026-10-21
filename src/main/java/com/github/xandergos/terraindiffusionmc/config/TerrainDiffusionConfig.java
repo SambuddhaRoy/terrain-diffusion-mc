@@ -40,6 +40,14 @@ public final class TerrainDiffusionConfig {
         return device;
     }
 
+    /**
+     * Biome selection: "climate" (default) feeds Terrain Diffusion's climate into the overworld multi-noise
+     * biome list, so vanilla and modded biomes all appear; "classic" keeps the original fixed palette.
+     */
+    public static boolean classicBiomes() {
+        return "classic".equals(readString("biomes.mode", "climate"));
+    }
+
     /** Whether to offload inactive models from VRAM between pipeline stages. */
     public static boolean offloadModels() {
         return readBoolean("inference.offload_models", DEFAULT_OFFLOAD_MODELS);

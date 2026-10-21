@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    {
+      "id": "terrain-diffusion-mc:forest_sparse",
+      "required": false
+    }
+  ]
+}

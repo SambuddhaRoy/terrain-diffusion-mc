@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    {
+      "id": "terrain-diffusion-mc:snowy_taiga_sparse",
+      "required": false
+    }
+  ]
+}

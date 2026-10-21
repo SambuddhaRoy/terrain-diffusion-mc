@@ -1,0 +1,33 @@
+{
+  "replace": false,
+  "values": [
+    {
+      "id": "terrain-diffusion-mc:terrain_diffusion",
+      "required": false
+    },
+    {
+      "id": "terrain-diffusion-mc:terrain_diffusion_scale_1",
+      "required": false
+    },
+    {
+      "id": "terrain-diffusion-mc:terrain_diffusion_scale_2",
+      "required": false
+    },
+    {
+      "id": "terrain-diffusion-mc:terrain_diffusion_scale_3",
+      "required": false
+    },
+    {
+      "id": "terrain-diffusion-mc:terrain_diffusion_scale_4",
+      "required": false
+    },
+    {
+      "id": "terrain-diffusion-mc:terrain_diffusion_scale_5",
+      "required": false
+    },
+    {
+      "id": "terrain-diffusion-mc:terrain_diffusion_scale_6",
+      "required": false
+    }
+  ]
+}

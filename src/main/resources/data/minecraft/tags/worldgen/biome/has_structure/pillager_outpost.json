@@ -1,0 +1,13 @@
+{
+  "replace": false,
+  "values": [
+    {
+      "id": "terrain-diffusion-mc:steppe",
+      "required": false
+    },
+    {
+      "id": "terrain-diffusion-mc:taiga_sparse",
+      "required": false
+    }
+  ]
+}

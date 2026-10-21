@@ -43,6 +43,9 @@ public class TerrainDiffusionMc implements ModInitializer {
 
         ServerLevelEvents.LOAD.register((server, world) -> {
             if (world.dimension() == Level.OVERWORLD) {
+                if (world.getChunkSource().getGenerator().getBiomeSource() instanceof TerrainDiffusionBiomeSource biomeSource) {
+                    biomeSource.initializeForLevel(server.registryAccess(), world.getSeed());
+                }
                 WorldScaleManager.initializeForWorld(world);
                 LocalTerrainProvider.init(world.getSeed());
             }

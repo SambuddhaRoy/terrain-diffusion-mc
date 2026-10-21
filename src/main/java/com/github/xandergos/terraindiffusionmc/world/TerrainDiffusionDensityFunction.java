@@ -107,13 +107,14 @@ public class TerrainDiffusionDensityFunction implements DensityFunction {
     }
 
     @Override
+    // compute() is (surface height - y); bounds must cover worlds up to 2032 tall, since min/max shortcuts trust them.
     public double minValue() {
-        return -64;
+        return -4096;
     }
 
     @Override
     public double maxValue() {
-        return 1024;
+        return 4096;
     }
 
     @Override
