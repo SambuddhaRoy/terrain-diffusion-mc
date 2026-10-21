@@ -1,14 +1,14 @@
 package com.github.xandergos.terraindiffusionmc.mixin.client;
 
 import com.github.xandergos.terraindiffusionmc.client.WorldScaleSettingsScreen;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gui.screen.world.CreateWorldScreen;
-import net.minecraft.client.gui.screen.world.WorldCreator;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.util.Identifier;
-import net.minecraft.world.gen.WorldPreset;
-import net.minecraft.registry.RegistryKey;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
+import net.minecraft.client.gui.screens.worldselection.WorldCreationUiState;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.level.levelgen.presets.WorldPreset;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -20,63 +20,66 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 /**
  * Reuses vanilla's World tab "Customize" button for Terrain Diffusion worlds.
  */
-@Mixin(targets = "net.minecraft.client.gui.screen.world.CreateWorldScreen$WorldTab")
+@Mixin(targets = "net.minecraft.client.gui.screens.worldselection.CreateWorldScreen$WorldTab")
 public abstract class CreateWorldScreenWorldTabMixin {
     @Shadow
     @Final
-    CreateWorldScreen field_42182;
+    CreateWorldScreen this$0;
 
     @Shadow
-    private ButtonWidget customizeButton;
+    private Button customizeTypeButton;
 
-    private static final RegistryKey<WorldPreset> TERRAIN_DIFFUSION_PRESET_KEY =
-            RegistryKey.of(RegistryKeys.WORLD_PRESET, Identifier.of("terrain-diffusion-mc", "terrain_diffusion"));
+    private static final ResourceKey<WorldPreset> TERRAIN_DIFFUSION_PRESET_KEY =
+            ResourceKey.create(Registries.WORLD_PRESET, Identifier.fromNamespaceAndPath("terrain-diffusion-mc", "terrain_diffusion"));
 
-    @Inject(method = "method_48676", at = @At("TAIL"))
-    private void terrainDiffusionMc$enableCustomizeButtonForTerrainDiffusion(WorldCreator worldCreator, CallbackInfo callbackInfo) {
-        if (isTerrainDiffusionWorldTypeSelected()) {
-            customizeButton.active = true;
+    // uiState listener that sets customizeTypeButton.active
+    @Inject(method = "lambda$new$3", at = @At("TAIL"))
+    private void terrainDiffusionMc$enableCustomizeButtonForTerrainDiffusion(WorldCreationUiState worldCreator, CallbackInfo callbackInfo) {
+        if (isTerrainDiffusionWorldTypeSelected(this$0)) {
+            customizeTypeButton.active = true;
         }
     }
 
-    @Inject(method = "method_48680", at = @At("HEAD"), cancellable = true)
-    private void terrainDiffusionMc$forceCustomizeAvailable(CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
-        if (isTerrainDiffusionWorldTypeSelected()) {
+    // bonus chest switch active condition (!hardcore && !debug)
+    @Inject(method = "lambda$new$6", at = @At("HEAD"), cancellable = true)
+    private static void terrainDiffusionMc$forceCustomizeAvailable(CreateWorldScreen screen, CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
+        if (isTerrainDiffusionWorldTypeSelected(screen)) {
             callbackInfoReturnable.setReturnValue(true);
         }
     }
 
-    @Inject(method = "method_48681", at = @At("HEAD"), cancellable = true)
-    private void terrainDiffusionMc$forceCustomizeVisible(CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
-        if (isTerrainDiffusionWorldTypeSelected()) {
+    // generate structures switch active condition (!debug)
+    @Inject(method = "lambda$new$5", at = @At("HEAD"), cancellable = true)
+    private static void terrainDiffusionMc$forceCustomizeVisible(CreateWorldScreen screen, CallbackInfoReturnable<Boolean> callbackInfoReturnable) {
+        if (isTerrainDiffusionWorldTypeSelected(screen)) {
             callbackInfoReturnable.setReturnValue(true);
         }
     }
 
-    @Inject(method = "openCustomizeScreen", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "openPresetEditor", at = @At("HEAD"), cancellable = true)
     private void terrainDiffusionMc$openTerrainScaleScreen(CallbackInfo callbackInfo) {
-        if (!isTerrainDiffusionWorldTypeSelected()) {
+        if (!isTerrainDiffusionWorldTypeSelected(this$0)) {
             return;
         }
-        MinecraftClient minecraftClient = MinecraftClient.getInstance();
+        Minecraft minecraftClient = Minecraft.getInstance();
         if (minecraftClient != null) {
-            minecraftClient.setScreen(new WorldScaleSettingsScreen(field_42182));
+            minecraftClient.gui.setScreen(new WorldScaleSettingsScreen(this$0));
             callbackInfo.cancel();
         }
     }
 
-    private boolean isTerrainDiffusionWorldTypeSelected() {
-        WorldCreator worldCreator = field_42182.getWorldCreator();
+    private static boolean isTerrainDiffusionWorldTypeSelected(CreateWorldScreen screen) {
+        WorldCreationUiState worldCreator = screen.getUiState();
         if (worldCreator == null) {
             return false;
         }
-        WorldCreator.WorldType worldType = worldCreator.getWorldType();
+        WorldCreationUiState.WorldTypeEntry worldType = worldCreator.getWorldType();
         if (worldType == null) {
             return false;
         }
         if (TERRAIN_DIFFUSION_PRESET_KEY.equals(worldType.preset())) {
             return true;
         }
-        return "terrain diffusion".equalsIgnoreCase(worldType.getName().getString());
+        return "terrain diffusion".equalsIgnoreCase(worldType.describePreset().getString());
     }
 }

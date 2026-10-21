@@ -2,24 +2,23 @@ package com.github.xandergos.terraindiffusionmc.client;
 
 import com.github.xandergos.terraindiffusionmc.world.WorldScaleManager;
 import com.github.xandergos.terraindiffusionmc.world.WorldScaleSelectionState;
-import net.minecraft.client.gui.screen.world.CreateWorldScreen;
-import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.gui.widget.ButtonWidget;
-import net.minecraft.client.gui.widget.TextFieldWidget;
-import net.minecraft.client.gui.widget.TextWidget;
-import net.minecraft.registry.Registry;
-import net.minecraft.registry.RegistryKeys;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.text.MutableText;
-import net.minecraft.text.Text;
-import net.minecraft.util.Identifier;
-import net.minecraft.util.Formatting;
-import net.minecraft.world.dimension.DimensionOptions;
-import net.minecraft.world.dimension.DimensionOptionsRegistryHolder;
-import net.minecraft.world.dimension.DimensionType;
-
 import java.util.HashMap;
 import java.util.Map;
+import net.minecraft.ChatFormatting;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.StringWidget;
+import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
+import net.minecraft.core.Holder;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.level.dimension.DimensionType;
+import net.minecraft.world.level.dimension.LevelStem;
+import net.minecraft.world.level.levelgen.WorldDimensions;
 
 /**
  * World creation settings screen for selecting the initial terrain scale of a world.
@@ -31,17 +30,17 @@ public final class WorldScaleSettingsScreen extends Screen {
     private static final int BUTTON_WIDTH = 80;
     private static final int BUTTON_HEIGHT = 20;
 
-    private static final Text LABEL_TEXT = Text.literal("World Scale");
-    private static final Text DESCRIPTION_TEXT = Text.literal("Enter an integer value (1-6)");
-    private static final Text ERROR_TEXT = Text.literal("Scale must be an integer between 1 and 6")
-            .formatted(Formatting.RED);
+    private static final Component LABEL_TEXT = Component.literal("World Scale");
+    private static final Component DESCRIPTION_TEXT = Component.literal("Enter an integer value (1-6)");
+    private static final Component ERROR_TEXT = Component.literal("Scale must be an integer between 1 and 6")
+            .withStyle(ChatFormatting.RED);
 
     private final Screen parentScreen;
-    private TextFieldWidget scaleTextField;
-    private TextWidget validationTextWidget;
+    private EditBox scaleTextField;
+    private StringWidget validationTextWidget;
 
     public WorldScaleSettingsScreen(Screen parentScreen) {
-        super(Text.translatable("terrain-diffusion-mc.world_settings.title"));
+        super(Component.translatable("terrain-diffusion-mc.world_settings.title"));
         this.parentScreen = parentScreen;
     }
 
@@ -55,40 +54,40 @@ public final class WorldScaleSettingsScreen extends Screen {
         addCenteredTextWidget(DESCRIPTION_TEXT, centerX, centerY - 34, 0xAAAAAA);
         addCenteredTextWidget(LABEL_TEXT, centerX, centerY - 22, 0xFFFFFF);
 
-        scaleTextField = new TextFieldWidget(this.textRenderer,
+        scaleTextField = new EditBox(this.font,
                 centerX - TEXT_FIELD_WIDTH / 2, centerY - 10,
                 TEXT_FIELD_WIDTH, TEXT_FIELD_HEIGHT,
                 LABEL_TEXT);
-        scaleTextField.setText(String.valueOf(WorldScaleSelectionState.getPendingScaleOrDefault()));
-        scaleTextField.setChangedListener(value -> validationTextWidget.setMessage(Text.empty()));
-        this.addDrawableChild(scaleTextField);
+        scaleTextField.setValue(String.valueOf(WorldScaleSelectionState.getPendingScaleOrDefault()));
+        scaleTextField.setResponder(value -> validationTextWidget.setMessage(Component.empty()));
+        this.addRenderableWidget(scaleTextField);
         this.setInitialFocus(scaleTextField);
 
-        this.addDrawableChild(ButtonWidget.builder(Text.translatable("gui.done"), b -> onDonePressed())
-                .dimensions(centerX - BUTTON_WIDTH - 5, centerY + 20, BUTTON_WIDTH, BUTTON_HEIGHT)
+        this.addRenderableWidget(Button.builder(Component.translatable("gui.done"), b -> onDonePressed())
+                .bounds(centerX - BUTTON_WIDTH - 5, centerY + 20, BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build());
-        this.addDrawableChild(ButtonWidget.builder(Text.translatable("gui.cancel"), b -> close())
-                .dimensions(centerX + 5, centerY + 20, BUTTON_WIDTH, BUTTON_HEIGHT)
+        this.addRenderableWidget(Button.builder(Component.translatable("gui.cancel"), b -> onClose())
+                .bounds(centerX + 5, centerY + 20, BUTTON_WIDTH, BUTTON_HEIGHT)
                 .build());
 
-        validationTextWidget = new TextWidget(0, centerY + 46, this.width, 9, Text.empty(), this.textRenderer);
-        this.addDrawableChild(validationTextWidget);
+        validationTextWidget = new StringWidget(0, centerY + 46, this.width, 9, Component.empty(), this.font);
+        this.addRenderableWidget(validationTextWidget);
     }
 
     /**
      * Adds a centered TextWidget at the given screen-center x and y position.
      */
-    private void addCenteredTextWidget(Text text, int centerX, int y, int color) {
-        int textWidth = this.textRenderer.getWidth(text);
-        MutableText coloredText = text.copy().styled(style -> style.withColor(color));
-        TextWidget widget = new TextWidget(centerX - textWidth / 2, y, textWidth, 9, coloredText, this.textRenderer);
-        this.addDrawableChild(widget);
+    private void addCenteredTextWidget(Component text, int centerX, int y, int color) {
+        int textWidth = this.font.width(text);
+        MutableComponent coloredText = text.copy().withStyle(style -> style.withColor(color));
+        StringWidget widget = new StringWidget(centerX - textWidth / 2, y, textWidth, 9, coloredText, this.font);
+        this.addRenderableWidget(widget);
     }
 
     @Override
-    public void close() {
-        if (this.client != null) {
-            this.client.setScreen(parentScreen);
+    public void onClose() {
+        if (this.minecraft != null) {
+            this.minecraft.gui.setScreen(parentScreen);
         }
     }
 
@@ -96,7 +95,7 @@ public final class WorldScaleSettingsScreen extends Screen {
      * Parses and validates the chosen scale, then stores it as a pending world-creation value.
      */
     private void onDonePressed() {
-        String rawScaleValue = scaleTextField.getText().trim();
+        String rawScaleValue = scaleTextField.getValue().trim();
         if (rawScaleValue.isEmpty()) {
             validationTextWidget.setMessage(ERROR_TEXT);
             return;
@@ -109,7 +108,7 @@ public final class WorldScaleSettingsScreen extends Screen {
             }
             applyWorldHeightForScale(selectedScale);
             WorldScaleSelectionState.setPendingScale(selectedScale);
-            close();
+            onClose();
         } catch (NumberFormatException exception) {
             validationTextWidget.setMessage(ERROR_TEXT);
         }
@@ -123,9 +122,9 @@ public final class WorldScaleSettingsScreen extends Screen {
             return;
         }
 
-        createWorldScreen.getWorldCreator().applyModifier((registryManager, selectedDimensions) -> {
-            DimensionOptionsRegistryHolder updatedDimensions =
-                    updateOverworldDimensionType(registryManager.getOrThrow(RegistryKeys.DIMENSION_TYPE),
+        createWorldScreen.getUiState().updateDimensions((registryManager, selectedDimensions) -> {
+            WorldDimensions updatedDimensions =
+                    updateOverworldDimensionType(registryManager.lookupOrThrow(Registries.DIMENSION_TYPE),
                             selectedDimensions, selectedScale);
             return updatedDimensions == null ? selectedDimensions : updatedDimensions;
         });
@@ -134,30 +133,30 @@ public final class WorldScaleSettingsScreen extends Screen {
     /**
      * Replaces only the overworld dimension type entry with the scale-specific pre-registered one.
      */
-    private DimensionOptionsRegistryHolder updateOverworldDimensionType(
+    private WorldDimensions updateOverworldDimensionType(
             Registry<DimensionType> dimensionTypeRegistry,
-            DimensionOptionsRegistryHolder selectedDimensions,
+            WorldDimensions selectedDimensions,
             int selectedScale
     ) {
-        DimensionOptions overworldOptions = selectedDimensions.getOrEmpty(DimensionOptions.OVERWORLD).orElse(null);
+        LevelStem overworldOptions = selectedDimensions.get(LevelStem.OVERWORLD).orElse(null);
         if (overworldOptions == null) {
             return null;
         }
 
-        Identifier dimensionTypeId = Identifier.of(MOD_ID, "terrain_diffusion_scale_" + selectedScale);
-        RegistryEntry.Reference<DimensionType> selectedDimensionTypeEntry = dimensionTypeRegistry.getEntry(dimensionTypeId).orElse(null);
+        Identifier dimensionTypeId = Identifier.fromNamespaceAndPath(MOD_ID, "terrain_diffusion_scale_" + selectedScale);
+        Holder.Reference<DimensionType> selectedDimensionTypeEntry = dimensionTypeRegistry.get(dimensionTypeId).orElse(null);
         if (selectedDimensionTypeEntry == null) {
             return null;
         }
 
-        DimensionOptions updatedOverworldOptions = new DimensionOptions(
+        LevelStem updatedOverworldOptions = new LevelStem(
                 selectedDimensionTypeEntry,
-                overworldOptions.chunkGenerator()
+                overworldOptions.generator()
         );
 
-        Map<net.minecraft.registry.RegistryKey<DimensionOptions>, DimensionOptions> updatedDimensionMap =
+        Map<net.minecraft.resources.ResourceKey<LevelStem>, LevelStem> updatedDimensionMap =
                 new HashMap<>(selectedDimensions.dimensions());
-        updatedDimensionMap.put(DimensionOptions.OVERWORLD, updatedOverworldOptions);
-        return new DimensionOptionsRegistryHolder(updatedDimensionMap);
+        updatedDimensionMap.put(LevelStem.OVERWORLD, updatedOverworldOptions);
+        return new WorldDimensions(updatedDimensionMap);
     }
 }
